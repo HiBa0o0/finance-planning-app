@@ -349,31 +349,39 @@ def calculate_cumulative_metrics(df):
     return pd.DataFrame(yearly_metrics)
 
 def create_editable_table(num_years):
-    """Crée un tableau éditable pour le plan de financement"""
+    """Crée un tableau éditable et dynamique pour le plan de financement"""
     st.markdown("### Tableau de Saisie du Plan de Financement")
-    
-    # Création des colonnes pour chaque année
-    columns = ["Catégorie"] + [f"Année {i+1}" for i in range(num_years)]
-    
-    # Création du DataFrame pour les emplois
-    emplois_data = []
-    for category in EMPLOIS.keys():
-        row = [category] + [0.0] * num_years
-        emplois_data.append(row)
-    
-    # Création du DataFrame pour les ressources
-    ressources_data = []
-    for category in RESSOURCES.keys():
-        row = [category] + [0.0] * num_years
-        ressources_data.append(row)
-    
-    # Affichage des emplois
+
+    # Initialisation de l'état de session pour les lignes dynamiques
+    if 'emplois_rows' not in st.session_state or not isinstance(st.session_state.emplois_rows, list):
+        st.session_state.emplois_rows = list(EMPLOIS.keys())
+    if 'ressources_rows' not in st.session_state or not isinstance(st.session_state.ressources_rows, list):
+        st.session_state.ressources_rows = list(RESSOURCES.keys())
+
+    # --- Emplois ---
     st.markdown("#### Emplois")
-    emplois_df = pd.DataFrame(emplois_data, columns=columns)
+    col_add_emploi, col_btn_emploi = st.columns([4, 1])
+    with col_add_emploi:
+        new_emploi = st.text_input("Ajouter une catégorie Emploi", key="new_emploi")
+    with col_btn_emploi:
+        if st.button("Ajouter Emploi"):
+            if new_emploi and new_emploi not in st.session_state.emplois_rows:
+                st.session_state.emplois_rows.append(new_emploi)
+                if "emplois_data" in st.session_state:
+                    st.session_state.emplois_data.append([new_emploi] + [0.0] * num_years)
+                st.rerun()
+
+    # Construction du DataFrame emplois
+    columns = ["Catégorie"] + [f"Année {i+1}" for i in range(num_years)]
+    if "emplois_data" not in st.session_state or len(st.session_state.emplois_data) != len(st.session_state.emplois_rows):
+        st.session_state.emplois_data = [
+            [cat] + [0.0] * num_years for cat in st.session_state.emplois_rows
+        ]
+    emplois_df = pd.DataFrame(st.session_state.emplois_data, columns=columns)
     edited_emplois = st.data_editor(
         emplois_df,
         key="emplois_editor",
-        num_rows="fixed",
+        num_rows="dynamic",
         column_config={
             "Catégorie": st.column_config.TextColumn(
                 "Catégorie",
@@ -386,20 +394,36 @@ def create_editable_table(num_years):
                     f"Année {i+1}",
                     help=f"Montant pour l'année {i+1}",
                     min_value=0,
-                    format="%.2f €"
+                    format="%.2f DA"
                 )
                 for i in range(num_years)
             }
         }
     )
-    
-    # Affichage des ressources
+    st.session_state.emplois_data = edited_emplois.values.tolist()
+
+    # --- Ressources ---
     st.markdown("#### Ressources")
-    ressources_df = pd.DataFrame(ressources_data, columns=columns)
+    col_add_res, col_btn_res = st.columns([4, 1])
+    with col_add_res:
+        new_ressource = st.text_input("Ajouter une catégorie Ressource", key="new_ressource")
+    with col_btn_res:
+        if st.button("Ajouter Ressource"):
+            if new_ressource and new_ressource not in st.session_state.ressources_rows:
+                st.session_state.ressources_rows.append(new_ressource)
+                if "ressources_data" in st.session_state:
+                    st.session_state.ressources_data.append([new_ressource] + [0.0] * num_years)
+                st.rerun()
+
+    if "ressources_data" not in st.session_state or len(st.session_state.ressources_data) != len(st.session_state.ressources_rows):
+        st.session_state.ressources_data = [
+            [cat] + [0.0] * num_years for cat in st.session_state.ressources_rows
+        ]
+    ressources_df = pd.DataFrame(st.session_state.ressources_data, columns=columns)
     edited_ressources = st.data_editor(
         ressources_df,
         key="ressources_editor",
-        num_rows="fixed",
+        num_rows="dynamic",
         column_config={
             "Catégorie": st.column_config.TextColumn(
                 "Catégorie",
@@ -412,13 +436,14 @@ def create_editable_table(num_years):
                     f"Année {i+1}",
                     help=f"Montant pour l'année {i+1}",
                     min_value=0,
-                    format="%.2f €"
+                    format="%.2f DA"
                 )
                 for i in range(num_years)
             }
         }
     )
-    
+    st.session_state.ressources_data = edited_ressources.values.tolist()
+
     return edited_emplois, edited_ressources
 
 def calculate_comparative_metrics(metrics, plan_data):
