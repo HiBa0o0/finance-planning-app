@@ -1,7 +1,7 @@
-import streamlit as st
-import pandas as pd
-import numpy as np
-import plotly.graph_objects as go
+import streamlit as st # type: ignore
+import pandas as pd # type: ignore
+import numpy as np # type: ignore
+import plotly.graph_objects as go # type: ignore
 from io import BytesIO
 
 # Configuration de la page avec un thème personnalisé
@@ -43,14 +43,91 @@ st.markdown("""
     .sidebar .sidebar-content {
         background-color: #ffffff;
     }
+    /* Sidebar custom style */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(135deg, #e3f0ff 0%, #f8f9fa 100%);
+        border-radius: 8px 0 0 8px;
+        box-shadow: 2px 0 12px rgba(31, 119, 180, 0.08);
+        padding-top: 30px;
+        padding-bottom: 30px;
+        min-width: 270px;
+    }
+    [data-testid="stSidebar"] .css-1d391kg {
+        color: #1f77b4;
+        font-size: 1.3rem;
+        font-weight: bold;
+        margin-bottom: 1.5rem;
+    }
+    [data-testid="stSidebar"] label, [data-testid="stSidebar"] .stRadio {
+        color: #1f77b4;
+        font-size: 1.1rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# Titre avec style
 st.markdown("""
-    <h1 style='text-align: center; color: #1f77b4; margin-bottom: 2rem;'>
-        Plan de Financement
-    </h1>
+<style>
+    /* Sidebar custom style for dark and light mode */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(135deg, #232b36 0%, #1a1d23 100%);
+        border-radius: 8px 0 0 8px;
+        box-shadow: 2px 0 12px rgba(31, 119, 180, 0.12);
+        padding-top: 30px;
+        padding-bottom: 30px;
+        min-width: 270px;
+    }
+    [data-testid="stSidebar"] .css-1d391kg, /* Sidebar title */
+    [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {
+        color: #90caf9 !important;
+        font-size: 1.3rem;
+        font-weight: bold;
+        margin-bottom: 1.5rem;
+    }
+    [data-testid="stSidebar"] label, [data-testid="stSidebar"] .stRadio, [data-testid="stSidebar"] .stRadio label {
+        color: #e3f2fd !important;
+        font-size: 1.1rem;
+    }
+    [data-testid="stSidebar"] .stRadio > div {
+        background: #232b36;
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+    }
+    [data-testid="stSidebar"] .stRadio > div:hover {
+        background: #1f77b4;
+        color: #fff !important;
+    }
+    /* Main area text color for dark mode */
+    @media (prefers-color-scheme: dark) {
+        .main, .stApp, .stMarkdown, .stDataFrame, .stTable, .stText, .stMetric {
+            color: #e3f2fd !important;
+        }
+        .stDataFrame, .stTable {
+            background: #232b36 !important;
+        }
+    }
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<style>
+    /* ...existing code... */
+    /* Tabs style for dark mode */
+    @media (prefers-color-scheme: dark) {
+        .stTabs [data-baseweb="tab"] {
+            background: #232b36 !important;
+            color: #e3f2fd !important;
+            border-radius: 5px;
+        }
+        .stTabs [data-baseweb="tab"]:hover {
+            background: #1f77b4 !important;
+            color: #fff !important;
+        }
+        .stTabs [aria-selected="true"] {
+            background: #1f77b4 !important;
+            color: #fff !important;
+        }
+    }
+</style>
 """, unsafe_allow_html=True)
 
 # Structure du plan de financement
@@ -90,7 +167,7 @@ def display_financial_status(solde):
     """Affiche le statut financier (Excédent/Déficit) avec explications"""
     if solde > 0:
         st.success(f"""
-        ### ✅ Excédent Financier: {solde:,.2f} €
+        ### ✅ Excédent Financier: {solde:,.2f} DA
         L'entreprise dispose d'un surplus de financement qui peut être utilisé pour:
         - Renforcer sa trésorerie
         - Investir davantage
@@ -98,7 +175,7 @@ def display_financial_status(solde):
         """)
     else:
         st.error(f"""
-        ### ⚠️ Déficit Financier: {solde:,.2f} €
+        ### ⚠️ Déficit Financier: {solde:,.2f} DA
         L'entreprise fait face à un besoin de financement supplémentaire.
         **Attention**: Un déficit répété ou trop important peut mettre en péril la solvabilité de l'entreprise.
         """)
@@ -106,51 +183,44 @@ def display_financial_status(solde):
 def display_financial_table(data, year):
     """Affiche les données sous forme de tableau de plan de financement"""
     st.markdown(f"### Plan de Financement - Année {year}")
-    
     # Création du tableau détaillé
     table_data = []
-    
     # Section Emplois
-    table_data.append(["EMPLOIS", "Montant (€)", "RESSOURCES", "Montant (€)"])
-    
+    table_data.append(["EMPLOIS", "Montant (DA)", "RESSOURCES", "Montant (DA)"])
     max_len = max(len(data['Emplois']), len(data['Ressources']))
     emplois_items = list(data['Emplois'].items())
     ressources_items = list(data['Ressources'].items())
-    
     for i in range(max_len):
         emp_row = emplois_items[i] if i < len(emplois_items) else ("", 0)
         res_row = ressources_items[i] if i < len(ressources_items) else ("", 0)
         table_data.append([
             emp_row[0], 
-            f"{emp_row[1]:,.2f} €" if emp_row[1] else "",
+            f"{emp_row[1]:,.2f} DA" if emp_row[1] else "",
             res_row[0], 
-            f"{res_row[1]:,.2f} €" if res_row[1] else ""
+            f"{res_row[1]:,.2f} DA" if res_row[1] else ""
         ])
-    
     # Totaux
     total_emplois = sum(data['Emplois'].values())
     total_ressources = sum(data['Ressources'].values())
     table_data.append([
         "Total Emplois", 
-        f"{total_emplois:,.2f} €",
+        f"{total_emplois:,.2f} DA",
         "Total Ressources", 
-        f"{total_ressources:,.2f} €"
+        f"{total_ressources:,.2f} DA"
     ])
-    
     # Création du DataFrame avec des noms de colonnes uniques
     df_table = pd.DataFrame(
         table_data,
         columns=["Type_Emplois", "Montant_Emplois", "Type_Ressources", "Montant_Ressources"]
     )
-    
-    # Application du style avec des index uniques
-    styled_df = df_table.style.apply(lambda x: ["background-color: lightgrey" if x.name == 0 
-                                              else "background-color: #f0f2f6" if x.name == len(df_table)-1 
-                                              else "" for _ in x], axis=1)
-    
-    # Affichage du tableau stylisé
+    # Style sobre : gris clair pour l'entête et la ligne des totaux, blanc pour le reste
+    def style_rows(row):
+        if row.name == 0 or row.name == len(df_table)-1:
+            return ["background-color: #ececec; font-weight: bold; color: #222;" for _ in row]
+        else:
+            return ["background-color: #fff; color: #222;" for _ in row]
+    styled_df = df_table.style.apply(style_rows, axis=1)
     st.dataframe(styled_df, height=400)
-    
     # Calcul et affichage du solde
     solde = total_ressources - total_emplois
     display_financial_status(solde)
@@ -234,11 +304,11 @@ def display_financial_analysis(data, year):
     # Affichage des métriques principales
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("Total Emplois", f"{total_emplois:,.2f} €")
+        st.metric("Total Emplois", f"{total_emplois:,.2f} DA")
     with col2:
-        st.metric("Total Ressources", f"{total_ressources:,.2f} €")
+        st.metric("Total Ressources", f"{total_ressources:,.2f} DA")
     with col3:
-        st.metric("Solde", f"{solde:,.2f} €")
+        st.metric("Solde", f"{solde:,.2f} DA")
     
     # Affichage des ratios avec formules
     st.markdown("""
@@ -280,8 +350,8 @@ def display_financial_analysis(data, year):
     else:
         st.error(f"""
         ⚠️ **Taux de Couverture**: {ratios['taux_couverture']:.2f}%
-        - Déficit de couverture: {(100 - ratios['taux_couverture']):.2f}%
-        - Besoin de financement complémentaire: {(total_emplois - total_ressources):,.2f} €
+        - Déficit de couverture: {(100 - ratios['taux_couverture'])::.2f}%
+        - Besoin de financement complémentaire: {(total_emplois - total_ressources):,.2f} DA
         """)
     
     # Analyse de l'autonomie financière
@@ -357,6 +427,33 @@ def create_editable_table(num_years):
         st.session_state.emplois_rows = list(EMPLOIS.keys())
     if 'ressources_rows' not in st.session_state or not isinstance(st.session_state.ressources_rows, list):
         st.session_state.ressources_rows = list(RESSOURCES.keys())
+
+    # --- Exemple réaliste ---
+    if st.button("Remplir avec un exemple", key="fill_example"):
+        # Exemple de montants pour chaque catégorie et chaque année
+        emplois_ex = {
+            'Reliquat des plans antérieurs': [500_000, 0, 0, 0, 0],
+            'Investissements': [2_000_000, 1_000_000, 500_000, 0, 0],
+            'Remboursement emprunts': [0, 200_000, 200_000, 200_000, 200_000],
+            'BFR': [300_000, 350_000, 400_000, 450_000, 500_000],
+            'Dividendes': [0, 0, 0, 100_000, 150_000],
+        }
+        ressources_ex = {
+            'CAF': [1_500_000, 1_600_000, 1_700_000, 1_800_000, 1_900_000],
+            'Subventions': [500_000, 0, 0, 0, 0],
+            'Augmentation capital': [1_000_000, 0, 0, 0, 0],
+            'Emprunts LMT': [0, 1_000_000, 0, 0, 0],
+            'Cessions actifs': [0, 0, 200_000, 0, 0],
+            'Prélèvement FR': [0, 0, 0, 0, 0],
+        }
+        n = num_years
+        st.session_state.emplois_data = [
+            [cat] + emplois_ex.get(cat, [0]*n)[:n] for cat in st.session_state.emplois_rows
+        ]
+        st.session_state.ressources_data = [
+            [cat] + ressources_ex.get(cat, [0]*n)[:n] for cat in st.session_state.ressources_rows
+        ]
+        st.rerun()
 
     # --- Emplois ---
     st.markdown("#### Emplois")
@@ -469,9 +566,7 @@ def calculate_comparative_metrics(metrics, plan_data):
 
 def comparative_analysis():
     """Analyse comparative des plans"""
-    st.markdown("""
-    # 🔄 Étude Comparative des Plans
-    """)
+
     
     if len(st.session_state.plans) < 2:
         st.warning("⚠️ Créez au moins deux plans pour effectuer une comparaison")
@@ -510,7 +605,7 @@ def comparative_analysis():
             fig1.update_layout(
                 title="Évolution des Soldes Cumulés",
                 xaxis_title="Année",
-                yaxis_title="Montant (€)",
+                yaxis_title="Montant (DA)",
                 height=500
             )
             st.plotly_chart(fig1, use_container_width=True)
@@ -534,12 +629,12 @@ def comparative_analysis():
             st.markdown("### Tableau Comparatif")
             st.dataframe(
                 comparison_df.style.format({
-                    'Solde cumulé final': '{:,.2f} €',
+                    'Solde cumulé final': '{:,.2f} DA',
                     'Taux couverture moyen': '{:.1f}%',
                     'Autonomie financière': '{:.1f}%',
                     'Endettement moyen': '{:.1f}%',
-                    'Total Emplois': '{:,.2f} €',
-                    'Total Ressources': '{:,.2f} €'
+                    'Total Emplois': '{:,.2f} DA',
+                    'Total Ressources': '{:,.2f} DA'
                 }),
                 height=200
             )
@@ -551,7 +646,7 @@ def comparative_analysis():
             ### 📌 Analyse Comparative
             
             Le plan **{best_plan['Plan']}** présente les meilleurs résultats avec:
-            - Solde cumulé final: {best_plan['Solde cumulé final']:,.2f} €
+            - Solde cumulé final: {best_plan['Solde cumulé final']:,.2f} DA
             - Taux de couverture moyen: {best_plan['Taux couverture moyen']:.1f}%
             
             #### Recommandations:
@@ -568,6 +663,84 @@ def comparative_analysis():
                 else "À surveiller"
             }
             """)
+
+def display_financial_summary_table(plan_data):
+    """Affiche un tableau récapitulatif multi-années avec totaux et soldes"""
+    years = [f"Année {i+1}" for i in range(plan_data['years'])]
+    emplois = plan_data['data'].apply(lambda row: pd.Series(row['Emplois']), axis=1).T
+    ressources = plan_data['data'].apply(lambda row: pd.Series(row['Ressources']), axis=1).T
+    emplois.columns = years
+    ressources.columns = years
+    emplois['Type'] = 'Emplois'
+    ressources['Type'] = 'Ressources'
+    emplois = emplois.reset_index().rename(columns={'index': 'Catégorie'})
+    ressources = ressources.reset_index().rename(columns={'index': 'Catégorie'})
+    # Calcul du solde par année
+    total_emplois = emplois[years].sum()
+    total_ressources = ressources[years].sum()
+    solde = total_ressources - total_emplois
+    # DataFrame final
+    df = pd.concat([emplois, ressources], ignore_index=True)
+    df_totaux = pd.DataFrame({
+        'Catégorie': ['Total Emplois', 'Total Ressources', 'Solde'],
+        'Type': ['', '', ''],
+        **{year: [total_emplois[year], total_ressources[year], solde[year]] for year in years}
+    })
+    df = pd.concat([df, df_totaux], ignore_index=True)
+    # Format DA
+    for year in years:
+        df[year] = df[year].apply(lambda x: f"{x:,.2f} DA" if pd.notnull(x) else "")
+    # Style sobre
+    def style_rows(row):
+        if row['Catégorie'] in ['Total Emplois', 'Total Ressources', 'Solde']:
+            return ['background-color: #ececec; font-weight: bold; color: #222;' for _ in row]
+        elif row.name == 0 or row['Type'] == 'Emplois' or row['Type'] == 'Ressources':
+            return ['background-color: #f7f7f7; color: #222;' for _ in row]
+        else:
+            return ['' for _ in row]
+    st.markdown('### Tableau récapitulatif multi-années')
+    st.dataframe(df.style.apply(style_rows, axis=1), height=500)
+
+def display_financial_classic_tables(plan_data):
+    """Affiche les Emplois puis les Ressources puis le solde, avec sections bien séparées et un style sobre"""
+    years = [f"Année {i+1}" for i in range(plan_data['years'])]
+    # Emplois
+    emplois = plan_data['data'].apply(lambda row: pd.Series(row['Emplois']), axis=1).T
+    emplois.columns = years
+    emplois = emplois.fillna(0)
+    emplois['Total'] = emplois.sum(axis=1)
+    emplois = emplois.reset_index().rename(columns={'index': 'Catégorie'})
+    total_emplois = emplois[years].sum()
+    emplois.loc[len(emplois)] = ['Total'] + list(total_emplois) + [total_emplois.sum()]
+    # Ressources
+    ressources = plan_data['data'].apply(lambda row: pd.Series(row['Ressources']), axis=1).T
+    ressources.columns = years
+    ressources = ressources.fillna(0)
+    ressources['Total'] = ressources.sum(axis=1)
+    ressources = ressources.reset_index().rename(columns={'index': 'Catégorie'})
+    total_ressources = ressources[years].sum()
+    ressources.loc[len(ressources)] = ['Total'] + list(total_ressources) + [total_ressources.sum()]
+    # Solde par année (en colonnes)
+    solde = total_ressources - total_emplois
+    solde_total = solde.sum()
+    solde_row = pd.DataFrame([['Solde'] + list(solde) + [solde_total]], columns=['Catégorie'] + years + ['Total'])
+    # Format DA
+    for year in years + ['Total']:
+        emplois[year] = emplois[year].apply(lambda x: f"{x:,.2f} DA" if pd.notnull(x) else "")
+        ressources[year] = ressources[year].apply(lambda x: f"{x:,.2f} DA" if pd.notnull(x) else "")
+        solde_row[year] = solde_row[year].apply(lambda x: f"{x:,.2f} DA" if pd.notnull(x) else "")
+    # Style sobre
+    def style_table(row):
+        if row['Catégorie'] == 'Total' or row['Catégorie'] == 'Solde':
+            return ['background-color: #ececec; font-weight: bold; color: #222;' for _ in row]
+        else:
+            return ['' for _ in row]
+    st.markdown('### Emplois (Besoins)')
+    st.dataframe(emplois.style.apply(style_table, axis=1), height=350)
+    st.markdown('### Ressources')
+    st.dataframe(ressources.style.apply(style_table, axis=1), height=350)
+    st.markdown('### Solde par année')
+    st.dataframe(solde_row.style.apply(style_table, axis=1), height=80)
 
 def main():
     menu_choice = show_menu()
@@ -610,8 +783,8 @@ def main():
             st.session_state.plans.append(plan)
             st.success(f"Plan '{plan_name}' créé avec succès!")
             
-            # Affichage du récapitulatif
-            display_financial_table(plan['data'].iloc[0], 1)
+            # Affichage classique : Emplois, puis Ressources, puis Solde par année
+            display_financial_classic_tables(plan)
 
     elif menu_choice == "Analyse Financière":
         st.markdown("""
