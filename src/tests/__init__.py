@@ -1,0 +1,1 @@
+# The file /finance-planning-app/finance-planning-app/src/tests/__init__.py is intentionally left blank.
