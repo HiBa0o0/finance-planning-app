@@ -2,7 +2,55 @@ import streamlit as st # type: ignore
 import pandas as pd # type: ignore
 import numpy as np # type: ignore
 import plotly.graph_objects as go # type: ignore
+import matplotlib.pyplot as plt # type: ignore
+import plotly.io as pio # type: ignore
 from io import BytesIO
+import plotly.graph_objects as go # type: ignore
+import tempfile
+import os
+import tempfile
+from fpdf import FPDF # type: ignore
+from datetime import datetime
+
+class PDF(FPDF):
+    def header(self):
+        if self.page_no() == 1:
+            return  # Pas d'en-tête sur la page de garde
+        self.set_font("Arial", "I", 8)
+        self.set_text_color(100, 100, 100)
+        self.cell(0, 8, f"Rapport généré le {datetime.now().strftime('%d/%m/%Y %H:%M')}", 0, 1, "R")
+        self.ln(2)
+
+    def footer(self):
+        self.set_y(-15)
+        self.set_font("Arial", "I", 8)
+        self.set_text_color(100, 100, 100)
+        self.cell(0, 10, f"Page {self.page_no()}", 0, 0, "C")
+
+# Couleurs harmonisées
+COLOR_PRIMARY = (31, 119, 180)      # Bleu principal
+COLOR_SECONDARY = (44, 160, 44)     # Vert
+COLOR_ACCENT = (214, 39, 40)        # Rouge
+COLOR_BG = (245, 247, 250)          # Fond très clair
+COLOR_TABLE_HEADER = (220, 230, 241)
+COLOR_TABLE_BORDER = (180, 180, 180)
+
+# Fonction pour titres de section harmonisés
+
+def section_title(title, color=COLOR_PRIMARY, align="L"):
+    pdf.ln(6)
+    pdf.set_font("Arial", "B", 15)
+    pdf.set_text_color(*color)
+    if align == "C":
+        pdf.cell(0, 12, title, ln=True, align="C")
+    else:
+        pdf.cell(0, 12, title, ln=True)
+    pdf.set_text_color(0,0,0)
+    pdf.set_draw_color(*color)
+    pdf.set_line_width(0.7)
+    y = pdf.get_y()
+    pdf.line(10, y, 200, y)
+    pdf.ln(4)
 
 # Configuration de la page avec un thème personnalisé
 st.set_page_config(
@@ -641,28 +689,41 @@ def comparative_analysis():
 
         with tab3:
             # Analyse et recommandations
-            best_plan = comparison_df.loc[comparison_df['Solde cumulé final'].idxmax()]
-            st.markdown(f"""
-            ### 📌 Analyse Comparative
-            
-            Le plan **{best_plan['Plan']}** présente les meilleurs résultats avec:
-            - Solde cumulé final: {best_plan['Solde cumulé final']:,.2f} DA
-            - Taux de couverture moyen: {best_plan['Taux couverture moyen']:.1f}%
-            
-            #### Recommandations:
-            1. **Structure financière**: {
-                "Équilibrée" if best_plan['Taux couverture moyen'] >= 100 
-                else "Nécessite des ajustements"
-            }
-            2. **Autonomie financière**: {
-                "Satisfaisante" if best_plan['Autonomie financière'] >= 30
-                else "À renforcer"
-            }
-            3. **Niveau d'endettement**: {
-                "Maîtrisé" if best_plan['Endettement moyen'] <= 50
-                else "À surveiller"
-            }
-            """)
+            # 1. Éliminer les plans à solde cumulé final négatif
+            valid_plans = comparison_df[comparison_df['Solde cumulé final'] >= 0].copy()
+            # 2. Appliquer les critères financiers
+            valid_plans = valid_plans[
+                (valid_plans['Taux couverture moyen'] >= 100) &
+                (valid_plans['Autonomie financière'] >= 30) &
+                (valid_plans['Endettement moyen'] <= 50)
+            ]
+            if not valid_plans.empty:
+                # 3. Choisir celui avec le meilleur solde cumulé final
+                best_plan = valid_plans.loc[valid_plans['Solde cumulé final'].idxmax()]
+                st.success(f"""
+                ### 📌 Analyse Comparative
+                Le plan **{best_plan['Plan']}** est recommandé car il respecte les grands équilibres financiers :
+                - Solde cumulé final positif ({best_plan['Solde cumulé final']:,.2f} DA)
+                - Taux de couverture moyen ≥ 100 % ({best_plan['Taux couverture moyen']:.1f} %)
+                - Autonomie financière ≥ 30 % ({best_plan['Autonomie financière']:.1f} %)
+                - Endettement moyen ≤ 50 % ({best_plan['Endettement moyen']:.1f} %)
+                """)
+            else:
+                # 4. Sinon, recommander le plan le moins risqué
+                # Critère : solde cumulé final le moins négatif, puis endettement le plus faible
+                fallback = comparison_df.copy()
+                fallback = fallback.sort_values(['Solde cumulé final', 'Endettement moyen'], ascending=[False, True])
+                best_plan = fallback.iloc[0]
+                st.warning(f"""
+                ### 📌 Analyse Comparative
+                Aucun plan ne respecte tous les équilibres financiers recommandés.
+                Le plan **{best_plan['Plan']}** est le moins risqué parmi les options :
+                - Solde cumulé final : {best_plan['Solde cumulé final']:,.2f} DA
+                - Taux de couverture moyen : {best_plan['Taux couverture moyen']:.1f} %
+                - Autonomie financière : {best_plan['Autonomie financière']:.1f} %
+                - Endettement moyen : {best_plan['Endettement moyen']:.1f} %
+                """)
+            st.info("La recommandation prend en compte le solde cumulé, le taux de couverture, l'autonomie financière et l'endettement, conformément aux principes comptables et financiers.")
 
 def display_financial_summary_table(plan_data):
     """Affiche un tableau récapitulatif multi-années avec totaux et soldes"""
@@ -814,7 +875,168 @@ def main():
                 display_financial_analysis(year_data, year)
                 
                 st.markdown("---")
-    
+            
+            if st.button("Générer le rapport PDF général", key="pdf_global"):
+                pdf = PDF()
+                pdf.add_page()
+                pdf.set_fill_color(*COLOR_BG)
+                pdf.rect(0, 0, 210, 297, 'F')
+                pdf.set_font("Arial", "B", 22)
+                pdf.set_text_color(*COLOR_PRIMARY)
+                pdf.cell(0, 60, "", ln=True)  # Espace vertical
+                pdf.cell(0, 18, "Rapport d'Analyse Financière", ln=True, align="C")
+                pdf.set_font("Arial", "", 16)
+                pdf.cell(0, 12, f"Plan : {plan_to_analyze}", ln=True, align="C")
+                pdf.set_font("Arial", "I", 12)
+                pdf.cell(0, 10, f"Généré le : {datetime.now().strftime('%d/%m/%Y à %H:%M')}", ln=True, align="C")
+                pdf.ln(10)
+                pdf.set_font("Arial", "", 12)
+                pdf.set_text_color(100, 100, 100)
+                pdf.multi_cell(0, 10, "Ce rapport présente une synthèse détaillée du plan de financement sélectionné, incluant les tableaux, graphiques, ratios et recommandations pour une meilleure prise de décision.")
+                pdf.set_text_color(0, 0, 0)
+                pdf.add_page()
+                
+                # --- Préparation des données ---
+                years = [f"Année {i+1}" for i in range(plan['years'])]
+                emplois = [sum(plan['data'].loc[year, 'Emplois'].values()) for year in years]
+                ressources = [sum(plan['data'].loc[year, 'Ressources'].values()) for year in years]
+                solde = [r - e for r, e in zip(ressources, emplois)]
+                solde_cumule = [sum(solde[:i+1]) for i in range(len(solde))]
+                taux_couverture = [(r / e * 100) if e != 0 else 0 for r, e in zip(ressources, emplois)]
+                
+                # --- Fonction de section ---
+                def section_title(title, color=COLOR_PRIMARY, align="L"):
+                    pdf.ln(6)
+                    pdf.set_font("Arial", "B", 15)
+                    pdf.set_text_color(*color)
+                    if align == "C":
+                        pdf.cell(0, 12, title, ln=True, align="C")
+                    else:
+                        pdf.cell(0, 12, title, ln=True)
+                    pdf.set_text_color(0,0,0)
+                    pdf.set_draw_color(*color)
+                    pdf.set_line_width(0.7)
+                    y = pdf.get_y()
+                    pdf.line(10, y, 200, y)
+                    pdf.ln(4)
+                
+                # --- Tableau Emplois ---
+                section_title("Tableau Emplois (Besoins)")
+                pdf.set_font("Arial", "", 11)
+                emplois_categories = list(plan['data'].loc[years[0], 'Emplois'].keys())
+                pdf.cell(60, 8, "Catégorie", 1, 0, "C", fill=True)
+                for year in years:
+                    pdf.cell(30, 8, year, 1, 0, "C", fill=True)
+                pdf.ln()
+                for cat in emplois_categories:
+                    pdf.cell(60, 8, cat, 1)
+                    for year in years:
+                        val = plan['data'].loc[year, 'Emplois'].get(cat, 0)
+                        pdf.cell(30, 8, f"{val:,.0f}", 1, 0, "R")
+                    pdf.ln()
+                pdf.ln(3)
+                
+                # --- Tableau Ressources ---
+                section_title("Tableau Ressources")
+                pdf.set_font("Arial", "", 11)
+                ressources_categories = list(plan['data'].loc[years[0], 'Ressources'].keys())
+                pdf.cell(60, 8, "Catégorie", 1, 0, "C", fill=True)
+                for year in years:
+                    pdf.cell(30, 8, year, 1, 0, "C", fill=True)
+                pdf.ln()
+                for cat in ressources_categories:
+                    pdf.cell(60, 8, cat, 1)
+                    for year in years:
+                        val = plan['data'].loc[year, 'Ressources'].get(cat, 0)
+                        pdf.cell(30, 8, f"{val:,.0f}", 1, 0, "R")
+                    pdf.ln()
+                pdf.ln(3)
+                
+                # --- Tableau Solde par année ---
+                section_title("Solde par année")
+                pdf.set_font("Arial", "", 11)
+                pdf.cell(30, 8, "Année", 1, 0, "C", fill=True)
+                pdf.cell(40, 8, "Emplois", 1, 0, "C", fill=True)
+                pdf.cell(40, 8, "Ressources", 1, 0, "C", fill=True)
+                pdf.cell(40, 8, "Solde", 1, 0, "C", fill=True)
+                pdf.cell(40, 8, "Taux Couverture (%)", 1, 0, "C", fill=True)
+                pdf.ln()
+                for i, year in enumerate(years):
+                    pdf.cell(30, 8, year, 1)
+                    pdf.cell(40, 8, f"{emplois[i]:,.0f}", 1, 0, "R")
+                    pdf.cell(40, 8, f"{ressources[i]:,.0f}", 1, 0, "R")
+                    pdf.cell(40, 8, f"{solde[i]:,.0f}", 1, 0, "R")
+                    pdf.cell(40, 8, f"{taux_couverture[i]:.1f}", 1, 0, "R")
+                    pdf.ln()
+                pdf.ln(3)
+                
+                # --- Graphiques ---
+                with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmpfile:
+                    plt.figure(figsize=(7, 4))
+                    plt.plot(years, solde_cumule, marker='o', color="#2ca02c")
+                    plt.title("Évolution du Solde cumulé")
+                    plt.xlabel("Année")
+                    plt.ylabel("Montant (DA)")
+                    plt.grid(True, linestyle="--", alpha=0.5)
+                    plt.tight_layout()
+                    plt.savefig(tmpfile.name)
+                    plt.close()
+                    tmpfile_path = tmpfile.name
+                
+                with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmpfile2:
+                    plt.figure(figsize=(7, 4))
+                    plt.bar(years, taux_couverture, color="#1f77b4")
+                    plt.title("Taux de Couverture par Année")
+                    plt.xlabel("Année")
+                    plt.ylabel("Taux (%)")
+                    plt.ylim(0, max(110, max(taux_couverture) + 10))
+                    plt.grid(axis='y', linestyle="--", alpha=0.5)
+                    plt.tight_layout()
+                    plt.savefig(tmpfile2.name)
+                    plt.close()
+                    tmpfile2_path = tmpfile2.name
+                
+                pdf.ln(5)
+                section_title("Graphique : Évolution du Solde cumulé", color=COLOR_SECONDARY, align="C")
+                pdf.image(tmpfile_path, w=170, x=20)
+                pdf.ln(5)
+                section_title("Graphique : Taux de Couverture par Année", color=COLOR_SECONDARY, align="C")
+                pdf.image(tmpfile2_path, w=170, x=20)
+                
+                os.unlink(tmpfile_path)
+                os.unlink(tmpfile2_path)
+                
+                # --- Analyse et Recommandations ---
+                pdf.add_page()
+                section_title("Analyse et Recommandations", color=COLOR_ACCENT)
+                pdf.set_font("Arial", "", 12)
+                pdf.set_text_color(0,0,0)
+                
+                for i, year in enumerate(years):
+                    pdf.set_font("Arial", "B", 12)
+                    pdf.cell(0, 8, f"{year} :", ln=True)
+                    pdf.set_font("Arial", "", 11)
+                    if taux_couverture[i] >= 100:
+                        pdf.set_text_color(*COLOR_SECONDARY)
+                        pdf.multi_cell(0, 8, f"[OK] Taux de Couverture : {taux_couverture[i]:.2f}%\n- Les ressources couvrent les emplois.\n- Marge de sécurité : {taux_couverture[i] - 100:.2f}%")
+                    else:
+                        pdf.set_text_color(*COLOR_ACCENT)
+                        pdf.multi_cell(0, 8, f"[Attention] Taux de Couverture : {taux_couverture[i]::.2f}%\n- Déficit de couverture : {100 - taux_couverture[i]:.2f}%\n- Besoin de financement complémentaire : {emplois[i] - ressources[i]:,.0f} DA")
+                    pdf.set_text_color(0,0,0)
+                    pdf.ln(2)
+                
+                # --- Téléchargement ---
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmpfile:
+                    pdf.output(tmpfile.name)
+                    with open(tmpfile.name, "rb") as f:
+                        st.download_button(
+                            label="📥 Télécharger le rapport PDF général",
+                            data=f,
+                            file_name=f"rapport_analyse_financiere_{plan_to_analyze}.pdf",
+                            mime="application/pdf"
+                        )
+
+
     elif menu_choice == "Étude Comparative":
         st.markdown("""
         # 🔄 Étude Comparative
