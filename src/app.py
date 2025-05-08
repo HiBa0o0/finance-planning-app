@@ -398,7 +398,7 @@ def display_financial_analysis(data, year):
     else:
         st.error(f"""
         ⚠️ **Taux de Couverture**: {ratios['taux_couverture']:.2f}%
-        - Déficit de couverture: {(100 - ratios['taux_couverture'])::.2f}%
+        - Déficit de couverture: {(100 - ratios['taux_couverture']):.2f}%
         - Besoin de financement complémentaire: {(total_emplois - total_ressources):,.2f} DA
         """)
     
@@ -480,18 +480,18 @@ def create_editable_table(num_years):
     if st.button("Remplir avec un exemple", key="fill_example"):
         # Exemple de montants pour chaque catégorie et chaque année
         emplois_ex = {
-            'Reliquat des plans antérieurs': [500_000, 0, 0, 0, 0],
-            'Investissements': [2_000_000, 1_000_000, 500_000, 0, 0],
-            'Remboursement emprunts': [0, 200_000, 200_000, 200_000, 200_000],
-            'BFR': [300_000, 350_000, 400_000, 450_000, 500_000],
-            'Dividendes': [0, 0, 0, 100_000, 150_000],
+            'Reliquat des plans antérieurs': [0, 0, 0, 0, 0],
+            'Investissements': [5_000_000, 0, 0, 0, 0],
+            'Remboursement emprunts': [2_910_000, 2_910_000, 2_910_000, 0, 0],
+            'BFR': [400_000, 500_000, 100_000, 0, 0],
+            'Dividendes': [0, 0, 0, 0, 0],
         }
         ressources_ex = {
-            'CAF': [1_500_000, 1_600_000, 1_700_000, 1_800_000, 1_900_000],
-            'Subventions': [500_000, 0, 0, 0, 0],
-            'Augmentation capital': [1_000_000, 0, 0, 0, 0],
-            'Emprunts LMT': [0, 1_000_000, 0, 0, 0],
-            'Cessions actifs': [0, 0, 200_000, 0, 0],
+            'CAF': [1_300_000, 2_600_000, 2_800_000, 3_000_000, 3_300_000],
+            'Subventions': [0, 0, 0, 0, 0],
+            'Augmentation capital': [0, 0, 0, 0, 0],
+            'Emprunts LMT': [7_000_000, 0, 0, 0, 0],
+            'Cessions actifs': [420_000, 300_000, 150_000, 0, 0],
             'Prélèvement FR': [0, 0, 0, 0, 0],
         }
         n = num_years
@@ -518,11 +518,21 @@ def create_editable_table(num_years):
 
     # Construction du DataFrame emplois
     columns = ["Catégorie"] + [f"Année {i+1}" for i in range(num_years)]
-    if "emplois_data" not in st.session_state or len(st.session_state.emplois_data) != len(st.session_state.emplois_rows):
-        st.session_state.emplois_data = [
-            [cat] + [0.0] * num_years for cat in st.session_state.emplois_rows
-        ]
+
+    # Correction : s'assurer que chaque ligne a la bonne taille
+    def fix_row_length(row):
+        if len(row) < len(columns):
+            return row + [0.0] * (len(columns) - len(row))
+        elif len(row) > len(columns):
+            return row[:len(columns)]
+        return row
+
+    st.session_state.emplois_data = [fix_row_length(row) for row in st.session_state.emplois_data]
+    st.session_state.ressources_data = [fix_row_length(row) for row in st.session_state.ressources_data]
+
     emplois_df = pd.DataFrame(st.session_state.emplois_data, columns=columns)
+    ressources_df = pd.DataFrame(st.session_state.ressources_data, columns=columns)
+    # ...existing code...
     edited_emplois = st.data_editor(
         emplois_df,
         key="emplois_editor",
@@ -588,7 +598,8 @@ def create_editable_table(num_years):
         }
     )
     st.session_state.ressources_data = edited_ressources.values.tolist()
-
+    edited_emplois= edited_emplois.fillna(0.0)
+    edited_ressources= edited_ressources.fillna(0.0)
     return edited_emplois, edited_ressources
 
 def calculate_comparative_metrics(metrics, plan_data):
@@ -647,7 +658,7 @@ def comparative_analysis():
                 fig1.add_trace(go.Scatter(
                     x=metrics['Année'],
                     y=metrics['Solde cumulé'],
-                    name=f"{metrics['Plan']}",
+                    name=metrics['Plan'].iloc[0],
                     mode='lines+markers'
                 ))
             fig1.update_layout(
@@ -663,7 +674,7 @@ def comparative_analysis():
                 fig2.add_trace(go.Bar(
                     x=metrics['Année'],
                     y=metrics['Taux de couverture'],
-                    name=f"{metrics['Plan']}"
+                    name=metrics['Plan'].iloc[0],
                 ))
             fig2.update_layout(
                 title="Taux de Couverture par Année",
@@ -814,7 +825,7 @@ def main():
         
         col1, col2 = st.columns([2, 1])
         with col1:
-            num_years = st.number_input("Nombre d'années du plan", 1, 5, 3)
+            num_years = st.number_input("Nombre d'années du plan", 1, 8, 3)
         with col2:
             plan_name = st.text_input("Nom du plan", "Plan 1")
         
@@ -843,10 +854,12 @@ def main():
             plan = create_plan(plan_data, plan_name, num_years)
             st.session_state.plans.append(plan)
             st.success(f"Plan '{plan_name}' créé avec succès!")
+    
             
             # Affichage classique : Emplois, puis Ressources, puis Solde par année
             display_financial_classic_tables(plan)
 
+    
     elif menu_choice == "Analyse Financière":
         st.markdown("""
         # 📊 Analyse Financière
@@ -864,17 +877,86 @@ def main():
         
         if plan_to_analyze:
             plan = next(p for p in st.session_state.plans if p['name'] == plan_to_analyze)
-            
-            # Affichage du tableau pour chaque année
-            for year in range(1, plan['years'] + 1):
+            years = [f'Année {i+1}' for i in range(plan['years'])]
+
+            mode = st.radio(
+                "Mode d'analyse",
+                ["Analyse par année", "Analyse générale"],
+                horizontal=True
+            )
+
+            if mode == "Analyse par année":
+                selected_year_label = st.selectbox(
+                    "Choisissez l'année à analyser",
+                    options=years,
+                    index=0
+                )
+                year_num = int(selected_year_label.split()[-1])
                 year_data = {
-                    'Emplois': plan['data'].loc[f'Année {year}', 'Emplois'],
-                    'Ressources': plan['data'].loc[f'Année {year}', 'Ressources']
+                    'Emplois': plan['data'].loc[selected_year_label, 'Emplois'],
+                    'Ressources': plan['data'].loc[selected_year_label, 'Ressources']
                 }
-                display_financial_table(year_data, year)
-                display_financial_analysis(year_data, year)
-                
-                st.markdown("---")
+                display_financial_table(year_data, year_num)
+                display_financial_analysis(year_data, year_num)
+            else:
+                st.markdown("## Analyse générale (toutes les années)")
+                display_financial_summary_table(plan)
+                # Calculs généraux
+                total_emplois = 0
+                total_ressources = 0
+                total_caf = 0
+                total_emprunts = 0
+                for year in years:
+                    total_emplois += sum(plan['data'].loc[year, 'Emplois'].values())
+                    total_ressources += sum(plan['data'].loc[year, 'Ressources'].values())
+                    total_caf += plan['data'].loc[year, 'Ressources'].get('CAF', 0)
+                    total_emprunts += plan['data'].loc[year, 'Ressources'].get('Emprunts LMT', 0)
+                total_solde = total_ressources - total_emplois
+                taux_couverture = (total_ressources / total_emplois * 100) if total_emplois != 0 else 0
+                autonomie = (total_caf / total_emplois * 100) if total_emplois != 0 else 0
+                endettement = (total_emprunts / total_ressources * 100) if total_ressources != 0 else 0
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Total Emplois", f"{total_emplois:,.2f} DA")
+                with col2:
+                    st.metric("Total Ressources", f"{total_ressources:,.2f} DA")
+                with col3:
+                    st.metric("Solde global", f"{total_solde:,.2f} DA")
+                st.markdown("""
+                #### 📐 Ratios Financiers globaux
+
+                1. **Taux de Couverture global**
+                ```
+                Taux de Couverture = (Total Ressources / Total Emplois) × 100
+                ```
+                Résultat: {:.2f}%
+
+                2. **Autonomie Financière globale**
+                ```
+                Autonomie = (CAF total / Total Emplois) × 100
+                ```
+                Résultat: {:.2f}%
+
+                3. **Endettement global**
+                ```
+                Endettement = (Emprunts LMT total / Total Ressources) × 100
+                ```
+                Résultat: {:.2f}%
+                """.format(taux_couverture, autonomie, endettement))
+                # Analyse et recommandations globales
+                st.markdown("#### 📋 Analyse et Recommandations (globales)")
+                if taux_couverture >= 100:
+                    st.success(f"✅ **Taux de Couverture global**: {taux_couverture:.2f}%\n- Les ressources couvrent entièrement les emplois sur toute la période.\n- Marge de sécurité: {(taux_couverture - 100):.2f}%")
+                else:
+                    st.error(f"⚠️ **Taux de Couverture global**: {taux_couverture:.2f}%\n- Déficit de couverture: {(100 - taux_couverture):.2f}%\n- Besoin de financement complémentaire: {(total_emplois - total_ressources):,.2f} DA")
+                if autonomie >= 30:
+                    st.success(f"✅ **Autonomie Financière globale**: {autonomie:.2f}%\n- Bonne capacité d'autofinancement sur l'ensemble du plan.")
+                else:
+                    st.warning(f"📊 **Autonomie Financière globale**: {autonomie:.2f}%\n- Dépendance aux financements externes.\n- Recommandation: Renforcer la CAF.")
+                if endettement <= 50:
+                    st.success(f"✅ **Endettement global**: {endettement:.2f}%\n- Niveau d'endettement maîtrisé sur l'ensemble du plan.")
+                else:
+                    st.warning(f"📊 **Endettement global**: {endettement:.2f}%\n- Niveau d'endettement élevé.\n- Recommandation: Limiter le recours à l'emprunt.")
             
             if st.button("Générer le rapport PDF général", key="pdf_global"):
                 pdf = PDF()
@@ -1021,7 +1103,7 @@ def main():
                         pdf.multi_cell(0, 8, f"[OK] Taux de Couverture : {taux_couverture[i]:.2f}%\n- Les ressources couvrent les emplois.\n- Marge de sécurité : {taux_couverture[i] - 100:.2f}%")
                     else:
                         pdf.set_text_color(*COLOR_ACCENT)
-                        pdf.multi_cell(0, 8, f"[Attention] Taux de Couverture : {taux_couverture[i]::.2f}%\n- Déficit de couverture : {100 - taux_couverture[i]:.2f}%\n- Besoin de financement complémentaire : {emplois[i] - ressources[i]:,.0f} DA")
+                        pdf.multi_cell(0, 8, f"[Attention] Taux de Couverture : {taux_couverture[i]:.2f}%\n- Déficit de couverture : {100 - taux_couverture[i]:.2f}%\n- Besoin de financement complémentaire : {emplois[i] - ressources[i]:,.0f} DA")
                     pdf.set_text_color(0,0,0)
                     pdf.ln(2)
                 
