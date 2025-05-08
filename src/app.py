@@ -519,6 +519,16 @@ def create_editable_table(num_years):
     # Construction du DataFrame emplois
     columns = ["Catégorie"] + [f"Année {i+1}" for i in range(num_years)]
 
+    # Initialisation robuste des données si absentes
+    if "emplois_data" not in st.session_state or len(st.session_state.emplois_data) != len(st.session_state.emplois_rows):
+        st.session_state.emplois_data = [
+            [cat] + [0.0] * num_years for cat in st.session_state.emplois_rows
+        ]
+    if "ressources_data" not in st.session_state or len(st.session_state.ressources_data) != len(st.session_state.ressources_rows):
+        st.session_state.ressources_data = [
+            [cat] + [0.0] * num_years for cat in st.session_state.ressources_rows
+        ]
+
     # Correction : s'assurer que chaque ligne a la bonne taille
     def fix_row_length(row):
         if len(row) < len(columns):
@@ -751,12 +761,14 @@ def display_financial_summary_table(plan_data):
     total_emplois = emplois[years].sum()
     total_ressources = ressources[years].sum()
     solde = total_ressources - total_emplois
+    # Ajout du solde cumulé
+    solde_cumule = solde.cumsum()
     # DataFrame final
     df = pd.concat([emplois, ressources], ignore_index=True)
     df_totaux = pd.DataFrame({
-        'Catégorie': ['Total Emplois', 'Total Ressources', 'Solde'],
-        'Type': ['', '', ''],
-        **{year: [total_emplois[year], total_ressources[year], solde[year]] for year in years}
+        'Catégorie': ['Total Emplois', 'Total Ressources', 'Solde', 'Solde cumulé'],
+        'Type': ['', '', '', ''],
+        **{year: [total_emplois[year], total_ressources[year], solde[year], solde_cumule[year]] for year in years}
     })
     df = pd.concat([df, df_totaux], ignore_index=True)
     # Format DA
@@ -764,14 +776,59 @@ def display_financial_summary_table(plan_data):
         df[year] = df[year].apply(lambda x: f"{x:,.2f} DA" if pd.notnull(x) else "")
     # Style sobre
     def style_rows(row):
-        if row['Catégorie'] in ['Total Emplois', 'Total Ressources', 'Solde']:
+        if row['Catégorie'] in ['Total Emplois', 'Total Ressources', 'Solde', 'Solde cumulé']:
             return ['background-color: #ececec; font-weight: bold; color: #222;' for _ in row]
         elif row.name == 0 or row['Type'] == 'Emplois' or row['Type'] == 'Ressources':
             return ['background-color: #f7f7f7; color: #222;' for _ in row]
         else:
             return ['' for _ in row]
     st.markdown('### Tableau récapitulatif multi-années')
-    st.dataframe(df.style.apply(style_rows, axis=1), height=500)
+    st.dataframe(df.style.apply(style_rows, axis=1), height=550)
+
+    # --- Graphiques pour l'analyse générale (style étude comparative) ---
+    st.markdown('### Graphiques globaux')
+    # Graphe Solde cumulé (courbe)
+    fig1 = go.Figure()
+    fig1.add_trace(go.Scatter(
+        x=years,
+        y=solde_cumule,
+        mode='lines+markers',
+        marker=dict(size=10, color='#2ca02c', line=dict(width=2, color='#fff')),
+        line=dict(color='#2ca02c', width=3),
+        name="Solde cumulé"
+    ))
+    fig1.update_layout(
+        title="Évolution des Soldes Cumulés",
+        xaxis_title="Année",
+        yaxis_title="Montant (DA)",
+        plot_bgcolor="#f8f9fa",
+        height=500,
+        font=dict(size=15),
+        margin=dict(l=40, r=40, t=60, b=40),
+        showlegend=False
+    )
+    st.plotly_chart(fig1, use_container_width=True)
+
+    # Graphe Taux de couverture (barres)
+    taux_couverture = [(total_ressources[year] / total_emplois[year] * 100) if total_emplois[year] != 0 else 0 for year in years]
+    fig2 = go.Figure()
+    fig2.add_trace(go.Bar(
+        x=years,
+        y=taux_couverture,
+        marker_color="#1f77b4",
+        name="Taux de Couverture"
+    ))
+    fig2.update_layout(
+        title="Taux de Couverture par Année",
+        xaxis_title="Année",
+        yaxis_title="Taux (%)",
+        plot_bgcolor="#f8f9fa",
+        height=400,
+        font=dict(size=15),
+        margin=dict(l=40, r=40, t=60, b=40),
+        yaxis=dict(range=[0, max(110, max(taux_couverture) + 10)])
+    )
+    st.plotly_chart(fig2, use_container_width=True)
 
 def display_financial_classic_tables(plan_data):
     """Affiche les Emplois puis les Ressources puis le solde, avec sections bien séparées et un style sobre"""
@@ -1004,53 +1061,68 @@ def main():
                 
                 # --- Tableau Emplois ---
                 section_title("Tableau Emplois (Besoins)")
-                pdf.set_font("Arial", "", 11)
+                pdf.set_font("Arial", "", 9)
                 emplois_categories = list(plan['data'].loc[years[0], 'Emplois'].keys())
-                pdf.cell(60, 8, "Catégorie", 1, 0, "C", fill=True)
+                # Calcul dynamique des largeurs
+                page_width = 210 - 20  # A4 largeur - marges (10mm de chaque côté)
+                cat_col_width = 50
+                n_years = len(years)
+                col_width = max(15, int((page_width - cat_col_width) / n_years))
+                pdf.set_fill_color(220, 230, 241)
+                pdf.cell(cat_col_width, 8, "Catégorie", 1, 0, "C", fill=True)
                 for year in years:
-                    pdf.cell(30, 8, year, 1, 0, "C", fill=True)
+                    pdf.cell(col_width, 8, year, 1, 0, "C", fill=True)
                 pdf.ln()
+                pdf.set_fill_color(255,255,255)
                 for cat in emplois_categories:
-                    pdf.cell(60, 8, cat, 1)
+                    pdf.cell(cat_col_width, 8, cat, 1)
                     for year in years:
                         val = plan['data'].loc[year, 'Emplois'].get(cat, 0)
-                        pdf.cell(30, 8, f"{val:,.0f}", 1, 0, "R")
+                        pdf.cell(col_width, 8, f"{val:,.0f}", 1, 0, "R")
                     pdf.ln()
                 pdf.ln(3)
-                
+
                 # --- Tableau Ressources ---
                 section_title("Tableau Ressources")
-                pdf.set_font("Arial", "", 11)
+                pdf.set_font("Arial", "", 9)
                 ressources_categories = list(plan['data'].loc[years[0], 'Ressources'].keys())
-                pdf.cell(60, 8, "Catégorie", 1, 0, "C", fill=True)
+                pdf.set_fill_color(220, 230, 241)
+                pdf.cell(cat_col_width, 8, "Catégorie", 1, 0, "C", fill=True)
                 for year in years:
-                    pdf.cell(30, 8, year, 1, 0, "C", fill=True)
+                    pdf.cell(col_width, 8, year, 1, 0, "C", fill=True)
                 pdf.ln()
+                pdf.set_fill_color(255,255,255)
                 for cat in ressources_categories:
-                    pdf.cell(60, 8, cat, 1)
+                    pdf.cell(cat_col_width, 8, cat, 1)
                     for year in years:
                         val = plan['data'].loc[year, 'Ressources'].get(cat, 0)
-                        pdf.cell(30, 8, f"{val:,.0f}", 1, 0, "R")
+                        pdf.cell(col_width, 8, f"{val:,.0f}", 1, 0, "R")
                     pdf.ln()
                 pdf.ln(3)
-                
+
                 # --- Tableau Solde par année ---
                 section_title("Solde par année")
-                pdf.set_font("Arial", "", 11)
-                pdf.cell(30, 8, "Année", 1, 0, "C", fill=True)
-                pdf.cell(40, 8, "Emplois", 1, 0, "C", fill=True)
-                pdf.cell(40, 8, "Ressources", 1, 0, "C", fill=True)
-                pdf.cell(40, 8, "Solde", 1, 0, "C", fill=True)
-                pdf.cell(40, 8, "Taux Couverture (%)", 1, 0, "C", fill=True)
+                pdf.set_font("Arial", "", 9)
+                pdf.set_fill_color(220, 230, 241)
+                pdf.cell(cat_col_width, 8, "Année", 1, 0, "C", fill=True)
+                pdf.cell(col_width, 8, "Emplois", 1, 0, "C", fill=True)
+                pdf.cell(col_width, 8, "Ressources", 1, 0, "C", fill=True)
+                pdf.cell(col_width, 8, "Solde", 1, 0, "C", fill=True)
+                pdf.cell(col_width, 8, "Taux Couverture (%)", 1, 0, "C", fill=True)
                 pdf.ln()
+                pdf.set_fill_color(255,255,255)
                 for i, year in enumerate(years):
-                    pdf.cell(30, 8, year, 1)
-                    pdf.cell(40, 8, f"{emplois[i]:,.0f}", 1, 0, "R")
-                    pdf.cell(40, 8, f"{ressources[i]:,.0f}", 1, 0, "R")
-                    pdf.cell(40, 8, f"{solde[i]:,.0f}", 1, 0, "R")
-                    pdf.cell(40, 8, f"{taux_couverture[i]:.1f}", 1, 0, "R")
+                    pdf.cell(cat_col_width, 8, year, 1)
+                    pdf.cell(col_width, 8, f"{emplois[i]:,.0f}", 1, 0, "R")
+                    pdf.cell(col_width, 8, f"{ressources[i]:,.0f}", 1, 0, "R")
+                    pdf.cell(col_width, 8, f"{solde[i]:,.0f}", 1, 0, "R")
+                    pdf.cell(col_width, 8, f"{taux_couverture[i]:.1f}", 1, 0, "R")
                     pdf.ln()
                 pdf.ln(3)
+
+                # --- Esthétique pro : lignes séparatrices, couleurs, marges, titres centrés ---
+                pdf.set_draw_color(180,180,180)
+                pdf.set_line_width(0.3)
                 
                 # --- Graphiques ---
                 with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmpfile:
