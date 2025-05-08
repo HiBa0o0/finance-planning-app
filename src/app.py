@@ -387,45 +387,46 @@ def display_financial_analysis(data, year):
     
     # Analyse et recommandations
     st.markdown("#### 📋 Analyse et Recommandations")
-    
-    # Analyse du taux de couverture
-    if ratios['taux_couverture'] >= 100:
+    # Taux de couverture (avec cas besoins nuls)
+    if total_emplois == 0:
+        st.info("ℹ️ Les besoins (emplois) sont nuls cette année. Comptablement, cela signifie qu'aucun investissement ou besoin de financement n'est constaté. Le taux de couverture est donc de 0% mais n'indique ni risque ni opportunité.")
+    elif ratios['taux_couverture'] >= 100:
         st.success(f"""
         ✅ **Taux de Couverture**: {ratios['taux_couverture']:.2f}%
-        - Les ressources couvrent entièrement les emplois
-        - Marge de sécurité: {(ratios['taux_couverture'] - 100):.2f}%
+        - Les ressources couvrent intégralement les besoins. Comptablement, l'entreprise respecte l'équilibre financier et dispose d'une marge de sécurité de {(ratios['taux_couverture'] - 100):.2f}%.
+        - Cela traduit une gestion prudente et conforme aux principes de la comptabilité d'engagement.
         """)
     else:
         st.error(f"""
         ⚠️ **Taux de Couverture**: {ratios['taux_couverture']:.2f}%
+        - Les ressources ne couvrent pas totalement les besoins. Comptablement, cela révèle un déséquilibre financier.
         - Déficit de couverture: {(100 - ratios['taux_couverture']):.2f}%
         - Besoin de financement complémentaire: {(total_emplois - total_ressources):,.2f} DA
+        - Recommandation : rechercher des financements supplémentaires ou réduire les besoins pour rétablir l'équilibre.
         """)
-    
-    # Analyse de l'autonomie financière
+    # Autonomie financière
     if ratios['autonomie'] >= 30:
         st.success(f"""
         ✅ **Autonomie Financière**: {ratios['autonomie']:.2f}%
-        - Bonne capacité d'autofinancement
+        - La capacité d'autofinancement couvre une part significative des besoins. Comptablement, cela limite la dépendance aux dettes et renforce la solvabilité.
         """)
     else:
         st.warning(f"""
         📊 **Autonomie Financière**: {ratios['autonomie']:.2f}%
-        - Dépendance aux financements externes
-        - Recommandation: Renforcer la CAF
+        - Dépendance accrue aux financements externes. Comptablement, cela peut fragiliser la structure financière.
+        - Recommandation : renforcer la CAF (Capacité d'Autofinancement) pour améliorer la solidité du bilan.
         """)
-    
-    # Analyse de l'endettement
+    # Endettement
     if ratios['endettement'] <= 50:
         st.success(f"""
         ✅ **Endettement**: {ratios['endettement']:.2f}%
-        - Niveau d'endettement maîtrisé
+        - Niveau d'endettement maîtrisé. Comptablement, la structure financière reste saine et la capacité de remboursement est préservée.
         """)
     else:
         st.warning(f"""
         📊 **Endettement**: {ratios['endettement']:.2f}%
-        - Niveau d'endettement élevé
-        - Recommandation: Limiter le recours à l'emprunt
+        - Niveau d'endettement élevé. Comptablement, cela augmente le risque financier et peut limiter la capacité d'emprunt future.
+        - Recommandation : limiter le recours à l'emprunt et privilégier l'autofinancement.
         """)
 
 def create_plan(data, plan_name, num_years):
@@ -1165,12 +1166,14 @@ def main():
                 section_title("Analyse et Recommandations", color=COLOR_ACCENT)
                 pdf.set_font("Arial", "", 12)
                 pdf.set_text_color(0,0,0)
-                
                 for i, year in enumerate(years):
                     pdf.set_font("Arial", "B", 12)
                     pdf.cell(0, 8, f"{year} :", ln=True)
                     pdf.set_font("Arial", "", 11)
-                    if taux_couverture[i] >= 100:
+                    if emplois[i] == 0:
+                        pdf.set_text_color(100,100,100)
+                        pdf.multi_cell(0, 8, f"[Information] Les besoins (emplois) sont nuls cette année. Le taux de couverture est de 0% mais cela ne représente ni risque ni opportunité comptable.")
+                    elif taux_couverture[i] >= 100:
                         pdf.set_text_color(*COLOR_SECONDARY)
                         pdf.multi_cell(0, 8, f"[OK] Taux de Couverture : {taux_couverture[i]:.2f}%\n- Les ressources couvrent les emplois.\n- Marge de sécurité : {taux_couverture[i] - 100:.2f}%")
                     else:
