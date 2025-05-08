@@ -588,7 +588,8 @@ def create_editable_table(num_years):
         }
     )
     st.session_state.ressources_data = edited_ressources.values.tolist()
-
+    edited_emplois = edited_emplois.fillna(0.0)
+    edited_ressources = edited_ressources.fillna(0.0)
     return edited_emplois, edited_ressources
 
 def calculate_comparative_metrics(metrics, plan_data):
@@ -647,7 +648,7 @@ def comparative_analysis():
                 fig1.add_trace(go.Scatter(
                     x=metrics['Année'],
                     y=metrics['Solde cumulé'],
-                    name=f"{metrics['Plan']}",
+                    name=metrics['Plan'].iloc[0],
                     mode='lines+markers'
                 ))
             fig1.update_layout(
@@ -663,7 +664,7 @@ def comparative_analysis():
                 fig2.add_trace(go.Bar(
                     x=metrics['Année'],
                     y=metrics['Taux de couverture'],
-                    name=f"{metrics['Plan']}"
+                    name=metrics['Plan'].iloc[0],
                 ))
             fig2.update_layout(
                 title="Taux de Couverture par Année",
@@ -843,7 +844,6 @@ def main():
             plan = create_plan(plan_data, plan_name, num_years)
             st.session_state.plans.append(plan)
             st.success(f"Plan '{plan_name}' créé avec succès!")
-            
             # Affichage classique : Emplois, puis Ressources, puis Solde par année
             display_financial_classic_tables(plan)
 
